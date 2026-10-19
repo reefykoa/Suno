@@ -15,6 +15,14 @@ Start each session from the original starter project, rather than building on a 
 - Unless a prompt says otherwise, state only needs to survive ordinary recomposition. Process restoration, disk persistence, authentication, and production backend changes are excluded.
 - Acceptance checklists describe observable behavior. Use them to demonstrate your work; writing an automated suite is not required within the hour.
 
+### How these exercises map to the role
+
+The job description you supplied targets Senior and Staff Android engineers working across creation, discovery, playback, and social experiences. It emphasizes feature ownership, interactive media, polished animation, Android behavior, performance, and technical communication.
+
+These exercises practice small slices of those responsibilities. Exercise 8 specifically requires animation; exercise 4 uses actual Media3 playback; exercise 7 models an asynchronous creation experience; exercises 5 and 10 cover social interactions. The remaining exercises practice discovery, library management, and media state. None requires implementing real AI inference.
+
+Keep production architecture, profiling, instrumentation, and large-scale infrastructure in the discussion portion. You do not need to build a production platform within an hour. Use the questions after each exercise to explain how you would evolve your implementation without adding that work to its acceptance checklist.
+
 ### Starter project context
 
 The starter currently displays a greeting. It includes a Retrofit client and `ApiService.getSongs(page, pageSize)`, plus nullable song models. Song information is nested under `Song.clip`, with fields including title, creator display name, ID, artwork URLs, audio URL, liked status, and like count. The response includes page and total-page metadata.
@@ -32,7 +40,7 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 5. [Manage liked songs](#5-manage-liked-songs)
 6. [Create a playlist](#6-create-a-playlist)
 7. [Create a song](#7-create-a-song)
-8. [Edit song details](#8-edit-song-details)
+8. [Expand the now-playing experience](#8-expand-the-now-playing-experience)
 9. [Manage a play queue](#9-manage-a-play-queue)
 10. [Publish a song](#10-publish-a-song)
 
@@ -54,6 +62,11 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 
 **Outside this exercise:** Pagination, search, playback, and song mutations.
 
+**Discussion only:**
+
+- How would you separate reusable song presentation from discovery-specific loading and retry behavior?
+- How would you measure scrolling performance and artwork memory use before choosing an optimization?
+
 ## 2. Search your library
 
 **Your task:** Build a library screen where someone can find songs using a search field and a liked filter.
@@ -71,6 +84,11 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 - [ ] Songs with identical titles remain separate entries.
 
 **Outside this exercise:** Networking, editing likes, sorting, and playback.
+
+**Discussion only:**
+
+- Which search and filter behaviors would you confirm with product before changing this feature?
+- How would you keep typing responsive with a much larger library, and what evidence would justify server-side search?
 
 ## 3. Browse a paginated catalog
 
@@ -90,41 +108,56 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 
 **Outside this exercise:** Automatic infinite scrolling, pull-to-refresh, search, and playback.
 
+**Discussion only:**
+
+- Which pagination guarantees would you agree on with backend engineers if songs could be inserted while browsing?
+- How would you diagnose duplicate requests and measure network efficiency without hiding legitimate retries?
+
 ## 4. Play a song
 
 **Your task:** Build a song list with a mini-player that remains visible while the list scrolls.
 
 **Inputs:** Before the timed session, prepare three local song records containing IDs, titles, creators, and verified playable audio URLs. You may obtain these from the starter's song responses. Also prepare one deliberately invalid audio URL. Media3 ExoPlayer is already declared as a dependency.
 
-**Requirements:** Tapping a song starts actual foreground audio playback and updates the mini-player. Support play/pause and switching songs. Only one song may play at a time. Show buffering and playback failure; after failure, allow retry or selection of another song. When a track ends, show it as stopped and allow replay. Playback must stop and resources must be released when this screen is left.
+**Requirements:** Tapping a song starts actual foreground audio playback and updates the mini-player. Rapid selections must leave the last selected song active; an earlier track's delayed loading or error must not overwrite the current state. Support play/pause and switching songs. Only one song may play at a time. Show buffering and playback failure; after failure, allow retry or selection of another song. When a track ends, show it as stopped and allow replay. Playback must stop and resources must be released when this screen is left.
 
 **Acceptance checklist:**
 
 - [ ] Selecting a song updates the mini-player and plays its audio.
 - [ ] Play/pause controls both audible playback and the displayed state.
-- [ ] Switching tracks stops the previous audio.
+- [ ] Switching tracks stops the previous audio; after rapid selections, playback and the mini-player agree on the last selected song.
 - [ ] An invalid URL produces a visible failure, and a valid selection recovers.
-- [ ] Scrolling and recomposition do not restart the track or create overlapping audio.
+- [ ] Scrolling and recomposition do not restart the track or create overlapping audio; leaving the screen stops playback and releases the player.
 
 **Outside this exercise:** Background playback, notifications, audio focus handling, seeking, queues, and automatic next-track playback.
 
+**Discussion only:**
+
+- Who should own the player as the app grows to multiple screens, and what would change for production background playback?
+- How would you distinguish network buffering from player startup latency and measure time to audible playback?
+
 ## 5. Manage liked songs
 
-**Your task:** Build All Songs and Liked views with consistent like controls and counts.
+**Your task:** Build All Songs and Liked views with immediate feedback when a like is changed, followed by a simulated save that can succeed or fail.
 
-**Inputs:** Prepare six local songs with unique IDs, initial liked flags, and like counts. Include at least two liked songs. Counts already include the current user's like when the initial flag is true.
+**Inputs:** Prepare six local songs with unique IDs, initial liked flags, and like counts. Include at least two liked songs. Counts already include the current user's like when the initial flag is true. Each simulated update takes about one second; choose its success or failure outcome before triggering it.
 
-**Requirements:** Toggling a like immediately updates its icon, count, and membership in the Liked view. Liking adds one; unliking subtracts one. Repeated toggling must restore the original state and count. Changes persist while switching between the two views. Show an empty state when no songs are liked.
+**Requirements:** Toggling a like immediately updates its icon, count, and membership in the Liked view. Liking adds one; unliking subtracts one. While that song's update is pending, prevent another change to it in either view; other songs remain interactive. Success keeps the change. Failure restores that song's previous flag, count, and membership, and shows feedback with the ability to try again. Switching views must preserve pending and committed state. Show an empty state when no songs are liked.
 
 **Acceptance checklist:**
 
-- [ ] Both views show the same current like state for a song.
-- [ ] Unliking a song removes it immediately from Liked.
-- [ ] Returning to All Songs shows the updated count and flag.
-- [ ] Unliking the final liked song shows an empty state.
-- [ ] Repeated toggling does not drift counts or produce negative values.
+- [ ] Both views immediately reflect the same like state and count, including while saving.
+- [ ] A pending update cannot be repeated for the same song, but another song can be changed.
+- [ ] Success keeps the change; failure restores the prior state and permits another attempt.
+- [ ] Unliking the final liked song shows an empty state; a failed save restores it to Liked.
+- [ ] Repeated successful toggles do not drift counts; failure for one song does not undo another song's update.
 
-**Outside this exercise:** Network writes, optimistic server rollback, persistence, and playback.
+**Outside this exercise:** Real network writes, offline synchronization, persistence, and playback.
+
+**Discussion only:**
+
+- How would you evolve this interaction if the server returned an authoritative like count or conflicting updates?
+- Which signals would reveal frequent rollback or inconsistent UI state, and how would you distinguish update attempts from confirmed likes?
 
 ## 6. Create a playlist
 
@@ -144,41 +177,56 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 
 **Outside this exercise:** Multiple playlists, drag reordering, persistence, networking, and playback.
 
+**Discussion only:**
+
+- Which picker behavior would you validate with product/design, and which UI boundaries could be reused without overgeneralizing?
+- How would you measure picker opening and selection responsiveness with thousands of songs?
+
 ## 7. Create a song
 
-**Your task:** Build a simplified song creation form and show the two results of a simulated generation request.
+**Your task:** Build a simplified creation form and show a simulated song generation progressing through Queued, Generating, and Ready.
 
-**Inputs:** The form contains a description and an Instrumental switch. Prepare two local result songs. A simulated request should take about two seconds and support a deliberately selected success or failure outcome before submission.
+**Inputs:** The form contains a description and an Instrumental switch. Prepare two local result songs. A simulated submission spends about one second Queued and two seconds Generating before reaching Ready or failing. Select the success or failure outcome before submission; failure occurs after Generating. No real generation service is required.
 
-**Requirements:** Accept a nonblank description of at most 300 characters and show its character count. Create is unavailable for invalid input or while submitting. Keep the submitted description and Instrumental setting visible and fixed during the request. On success, display two result songs. On failure, show feedback and permit retry without losing the form values.
+**Requirements:** Accept a nonblank description of at most 300 characters and show its character count. Create is unavailable for invalid input or while Queued or Generating. Keep the submitted description and Instrumental setting visible and fixed during the request. Show each status clearly, without inventing percentage progress. Ready displays two result songs. Failure shows feedback and permits retry from Queued without losing form values. Start each new attempt with no previous result songs visible.
 
 **Acceptance checklist:**
 
 - [ ] Blank, whitespace-only, and over-limit descriptions cannot be submitted.
 - [ ] The Instrumental selection is reflected in the submitted request details.
-- [ ] Submission has visible progress and cannot be triggered twice concurrently.
-- [ ] Success displays exactly two results.
-- [ ] Failure preserves inputs, and retry can succeed.
+- [ ] Queued and Generating are visible in order, with duplicate submission prevented.
+- [ ] Ready displays exactly two results; failure does not display successful results.
+- [ ] Failure preserves inputs, and retry passes through Queued and Generating before succeeding.
 
-**Outside this exercise:** Real AI generation, credits, accounts, playback, and saving generated songs.
+**Outside this exercise:** Real AI inference, server polling or streaming, percentage progress, credits, accounts, playback, and saving results.
 
-## 8. Edit song details
+**Discussion only:**
 
-**Your task:** Build a song detail screen with an edit sheet for its title and style tags.
+- What status and retry contract would you need from backend engineers to replace the simulation, including handling duplicate submissions?
+- Which events would measure time spent queued, generation duration, and terminal failures without treating progress messages as completed songs?
 
-**Inputs:** Prepare one local song with a title, creator, and style-tag text. Treat tags as one free-text field; parsing or deduplicating tags is unnecessary.
+## 8. Expand the now-playing experience
 
-**Requirements:** Opening the sheet creates a draft of current values. Save trims the title and applies both fields; Cancel, Back, and dismiss discard pending edits. Require a trimmed title of 1–80 characters and show validation feedback. While the sheet remains open, rotating the device preserves its draft and keeps the editor open.
+**Your task:** Build a compact player that expands into a full now-playing presentation through an animated transition.
+
+**Inputs:** Prepare one local song with a title, creator, and artwork placeholder. Playback is simulated with a playing/paused flag; there is no audio, elapsed-time clock, or dependency on exercise 4. Start with the compact player paused.
+
+**Requirements:** Show title, creator, artwork, and a play/pause control in both presentations. Provide a separate expand action on the compact player and a collapse action on the expanded player. Expansion and collapse must visibly animate rather than switch instantly. Android Back collapses the expanded presentation; when compact, Back follows normal screen behavior. Play/pause changes stay synchronized across presentations, and those controls do not accidentally expand or collapse the player. Repeated presentation changes during a transition must settle into a single consistent presentation with usable controls. The animation technique and appearance are yours to choose.
 
 **Acceptance checklist:**
 
-- [ ] Editing fields does not change the underlying detail screen until Save.
-- [ ] Invalid titles cannot be saved.
-- [ ] Save updates details, and reopening shows the saved values.
-- [ ] Cancel or dismiss discards unsaved edits.
-- [ ] Rotation preserves the open editor and its draft; cancelling afterward restores committed values.
+- [ ] The compact player starts paused and expands through a visible animation.
+- [ ] Both presentations show the same song and current playing/paused state.
+- [ ] Play/pause works in either presentation without changing which presentation is open.
+- [ ] Collapse and Android Back return to the compact player through a visible animation without resetting playback state.
+- [ ] Rapid expand/collapse actions settle without duplicate players, blocked controls, or inconsistent state.
 
-**Outside this exercise:** Backend updates, persistence across process death, artwork editing, and navigation to other songs.
+**Outside this exercise:** Real audio, gestures, shared-element choreography, seeking, navigation between songs, persistence, and custom artwork loading.
+
+**Discussion only:**
+
+- How would you collaborate with design to preserve the intended transition while respecting Android Back behavior and accessibility?
+- How would you measure dropped frames and identify unnecessary layout, rendering, or memory work during expansion?
 
 ## 9. Manage a play queue
 
@@ -198,6 +246,11 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 
 **Outside this exercise:** Actual audio, drag reordering, repeat, shuffle, and persistence.
 
+**Discussion only:**
+
+- Who owns queue identity and selection, and how could the same behavior support real playback without rewriting the queue UI?
+- How would you detect a mismatch between selected and playing tracks and verify responsiveness for a large queue?
+
 ## 10. Publish a song
 
 **Your task:** Build a song detail screen with editable publishing settings.
@@ -216,6 +269,11 @@ For API exercises, missing titles and creators should have readable fallbacks; m
 
 **Outside this exercise:** Real publishing, permissions enforcement, sharing links, authentication, and persistence.
 
+**Discussion only:**
+
+- Which backend guarantees would you need for publishing permissions, retries, and consistent settings across devices?
+- Which events would distinguish a publish attempt, confirmed success, failure, and abandonment without recording private song content?
+
 ## After each session
 
 Use your final 10 minutes to demonstrate the checklist and answer:
@@ -226,10 +284,27 @@ Use your final 10 minutes to demonstrate the checklist and answer:
 - What tradeoff did you make to finish within the hour?
 - If you used AI, which suggestions did you accept, change, or reject? Explain one concrete limitation or mistake in its output and how you verified the final behavior.
 
-Record your elapsed time and unfinished requirements so you can compare sessions without expanding the next exercise's scope.
+Record your elapsed time and unfinished requirements so you can compare sessions without expanding the next exercise's scope. The discussion questions are prompts for explanation, not extra implementation requirements or claims about Suno's interview rubric.
+
+### Senior and Staff self-review
+
+- **Senior:** Can you explain how you would own this feature from clarifying the problem through shipping, monitoring, and iterating? Identify one quality risk and how you would test it.
+- **Staff:** Which boundary could become a shared foundation for other features? Explain how you would validate the need, introduce it incrementally, help teammates adopt it, and evaluate its costs as usage and the team grow.
+
+Discuss these at the level appropriate to your application. A small, correct implementation with clear tradeoffs remains the timed deliverable; building a platform, profiling suite, or monitoring pipeline is not required.
+
+## Questions to bring to Suno
+
+Choose a few that address what you still want to learn:
+
+- How is ownership divided across creation, discovery, playback, and social features, and what would this role own first?
+- How do Android engineers collaborate with product and design when shaping interactions and scoping a new feature?
+- Which parts of the media stack are shared foundations today, and where do you most need new abstractions?
+- Which performance and reliability measures guide Android releases, and how does the team investigate regressions?
+- How do the expectations for Senior and Staff engineers differ in feature delivery, technical direction, and mentorship?
 
 ## Context and feature references
 
-The interview format and permission to use AI come from your invitation email. The [job listing you supplied](https://jobs.ashbyhq.com/suno/f5826898-f3d2-4d11-aa03-17ecac31f28f?departmentId=53c2a563-73a5-4139-96ca-d07941990999&jr_id=6a56edec53b3962b910b3261) could not be retrieved when these exercises were prepared; no unverified role requirements are assumed.
+The interview format and permission to use AI come from your invitation email. Role alignment uses the full job description you supplied for the [Senior/Staff Android opening](https://jobs.ashbyhq.com/suno/f5826898-f3d2-4d11-aa03-17ecac31f28f?departmentId=53c2a563-73a5-4139-96ca-d07941990999&jr_id=6a56edec53b3962b910b3261). The supplied description emphasizes end-to-end ownership, creation/discovery/playback/social experiences, animation, performance, and technical leadership; it does not specify the live coding task.
 
 Feature inspiration comes from Suno's documentation for [Android Simple creation](https://help.suno.com/en/articles/3726657), [Android Custom creation](https://help.suno.com/en/articles/3726721), [playlist-based inspiration](https://help.suno.com/en/articles/6882753), and [publishing songs to a profile](https://help.suno.com/en/articles/2551361). Exercise rules deliberately simplify the product and do not specify Suno's production behavior.
